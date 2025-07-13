@@ -30,7 +30,6 @@ class GameMap:
         for riga in self.griglia:
             print(" ".join(simboli[cel] for cel in riga))
 
-
 class City:
     """Rappresenta una citta' del giocatore."""
 
