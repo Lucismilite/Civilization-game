@@ -23,8 +23,13 @@ class GameMap:
         """Aggiunge una citta' alla mappa."""
         self.cities.append(city)
 
-    def stampa_mappa(self) -> None:
-        """Stampa la mappa convertendo i terreni in simboli."""
+
+    def stampa_mappa(self, unita: list["Unit"] | None = None) -> None:
+        """Stampa la mappa convertendo i terreni in simboli.
+
+        Se presente una unita' nella cella viene mostrata ``U``. Se la cella
+        ospita una citta' viene mostrato ``S``.
+
 
         simboli = {
             "pianura": "P",
@@ -32,10 +37,13 @@ class GameMap:
             "montagna": "M",
             "foresta": "F",
         }
+        unita = unita or []
         for r, riga in enumerate(self.griglia):
             simboli_riga = []
             for c, terreno in enumerate(riga):
-                if any(city.x == r and city.y == c for city in self.cities):
+                if any(u.x == r and u.y == c for u in unita):
+                    simboli_riga.append("U")
+                elif any(city.x == r and city.y == c for city in self.cities):
                     simboli_riga.append("S")
                 else:
                     simboli_riga.append(simboli[terreno])
@@ -71,6 +79,58 @@ class Unit:
     def muovi(self, dx: int, dy: int) -> None:
         self.x += dx
         self.y += dy
+
+
+def muovi_verso(unita: "Unit", dest_x: int, dest_y: int) -> None:
+    """Muove l'unita' di un passo verso le coordinate fornite."""
+
+    dx = 0
+    dy = 0
+    if unita.x < dest_x:
+        dx = 1
+    elif unita.x > dest_x:
+        dx = -1
+
+    if unita.y < dest_y:
+        dy = 1
+    elif unita.y > dest_y:
+        dy = -1
+
+    unita.muovi(dx, dy)
+    print(f"{unita.nome} si muove a ({unita.x}, {unita.y})")
+
+
+def mostra_stato(mappa: GameMap, citta: list[City], unita: list[Unit]) -> None:
+    """Stampa la mappa insieme allo stato di citta' e unita'."""
+
+    mappa.stampa_mappa(unita)
+    for city in citta:
+        print(city.stato())
+    for u in unita:
+        print(f"{u.nome} - Posizione: ({u.x}, {u.y})")
+
+
+def verifica_scontri(unita: list[Unit]) -> None:
+    """Rimuove le unita' che si trovano sulla stessa cella."""
+
+    if len(unita) < 2:
+        return
+
+    pos = {}
+    to_remove = []
+    for u in unita:
+        key = (u.x, u.y)
+        if key in pos:
+            print("Scontro!")
+            to_remove.append(u)
+            to_remove.append(pos[key])
+        else:
+            pos[key] = u
+
+    for u in to_remove:
+        if u in unita:
+            unita.remove(u)
+
 if __name__ == "__main__":
     benvenuto()
     game_map = GameMap()
@@ -88,11 +148,6 @@ if __name__ == "__main__":
     game_map.add_city(citta1)
     game_map.add_city(citta2)
 
-    game_map.stampa_mappa()
-
-    print(citta1.stato())
-    print(citta2.stato())
-
     # Posiziona un'unita' accanto a ciascuna citta'
     def pos_accanto(x: int, y: int) -> tuple[int, int]:
         if x + 1 < game_map.size:
@@ -102,10 +157,19 @@ if __name__ == "__main__":
     unita1 = Unit("Unita 1", "guerriero", *pos_accanto(x1, y1), 2)
     unita2 = Unit("Unita 2", "guerriero", *pos_accanto(x2, y2), 2)
 
+    unita = [unita1, unita2]
+
+    # Stato iniziale
+    mostra_stato(game_map, [citta1, citta2], unita)
+
     # Ciclo di gioco per 5 turni
     for turno in range(1, 6):
         print(f"\n-- Turno {turno} --")
         for city in (citta1, citta2):
             city.popolazione += 100
             city.produzione += 2
-            print(city.stato())
+
+        muovi_verso(unita1, citta2.x, citta2.y)
+        muovi_verso(unita2, citta1.x, citta1.y)
+        verifica_scontri(unita)
+        mostra_stato(game_map, [citta1, citta2], unita)
