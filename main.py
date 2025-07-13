@@ -58,7 +58,6 @@ class City:
             f"Popolazione: {self.popolazione}, Produzione: {self.produzione}"
         )
 
-
 class Unit:
     """Rappresenta un'unita' militare."""
 
@@ -72,7 +71,6 @@ class Unit:
     def muovi(self, dx: int, dy: int) -> None:
         self.x += dx
         self.y += dy
-
 if __name__ == "__main__":
     benvenuto()
     game_map = GameMap()
