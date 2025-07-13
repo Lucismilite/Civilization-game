@@ -23,12 +23,13 @@ class GameMap:
         """Aggiunge una citta' alla mappa."""
         self.cities.append(city)
 
+
     def stampa_mappa(self, unita: list["Unit"] | None = None) -> None:
         """Stampa la mappa convertendo i terreni in simboli.
 
         Se presente una unita' nella cella viene mostrata ``U``. Se la cella
         ospita una citta' viene mostrato ``S``.
-        """
+
 
         simboli = {
             "pianura": "P",
@@ -64,7 +65,6 @@ class City:
             f"{self.nome} - Posizione: ({self.x}, {self.y}), "
             f"Popolazione: {self.popolazione}, Produzione: {self.produzione}"
         )
-
 
 class Unit:
     """Rappresenta un'unita' militare."""
