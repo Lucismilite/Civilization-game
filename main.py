@@ -32,3 +32,5 @@ class GameMap:
 
 if __name__ == "__main__":
     benvenuto()
+    game_map = GameMap()
+    game_map.stampa_mappa()
