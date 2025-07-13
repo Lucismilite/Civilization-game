@@ -17,6 +17,11 @@ class GameMap:
         self.griglia = [
             [random.choice(tipi_terreno) for _ in range(size)] for _ in range(size)
         ]
+        self.cities = []
+
+    def add_city(self, city: "City") -> None:
+        """Aggiunge una citta' alla mappa."""
+        self.cities.append(city)
 
     def stampa_mappa(self) -> None:
         """Stampa la mappa convertendo i terreni in simboli."""
@@ -27,8 +32,15 @@ class GameMap:
             "montagna": "M",
             "foresta": "F",
         }
-        for riga in self.griglia:
-            print(" ".join(simboli[cel] for cel in riga))
+        for r, riga in enumerate(self.griglia):
+            simboli_riga = []
+            for c, terreno in enumerate(riga):
+                if any(city.x == r and city.y == c for city in self.cities):
+                    simboli_riga.append("S")
+                else:
+                    simboli_riga.append(simboli[terreno])
+            print(" ".join(simboli_riga))
+
 
 class City:
     """Rappresenta una citta' del giocatore."""
@@ -49,7 +61,6 @@ class City:
 if __name__ == "__main__":
     benvenuto()
     game_map = GameMap()
-    game_map.stampa_mappa()
 
     # Crea due citta' in posizioni casuali distinte
     x1, y1 = random.randint(0, game_map.size - 1), random.randint(0, game_map.size - 1)
@@ -60,6 +71,11 @@ if __name__ == "__main__":
 
     citta1 = City("Citta 1", x1, y1, 1000, 10)
     citta2 = City("Citta 2", x2, y2, 1000, 10)
+
+    game_map.add_city(citta1)
+    game_map.add_city(citta2)
+
+    game_map.stampa_mappa()
 
     print(citta1.stato())
     print(citta2.stato())
