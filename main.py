@@ -58,6 +58,19 @@ class City:
             f"Popolazione: {self.popolazione}, Produzione: {self.produzione}"
         )
 
+class Unit:
+    """Rappresenta un'unita' militare."""
+
+    def __init__(self, nome: str, tipo: str, x: int, y: int, mov: int) -> None:
+        self.nome = nome
+        self.tipo = tipo
+        self.x = x
+        self.y = y
+        self.mov = mov
+
+    def muovi(self, dx: int, dy: int) -> None:
+        self.x += dx
+        self.y += dy
 if __name__ == "__main__":
     benvenuto()
     game_map = GameMap()
@@ -79,3 +92,20 @@ if __name__ == "__main__":
 
     print(citta1.stato())
     print(citta2.stato())
+
+    # Posiziona un'unita' accanto a ciascuna citta'
+    def pos_accanto(x: int, y: int) -> tuple[int, int]:
+        if x + 1 < game_map.size:
+            return x + 1, y
+        return x - 1, y
+
+    unita1 = Unit("Unita 1", "guerriero", *pos_accanto(x1, y1), 2)
+    unita2 = Unit("Unita 2", "guerriero", *pos_accanto(x2, y2), 2)
+
+    # Ciclo di gioco per 5 turni
+    for turno in range(1, 6):
+        print(f"\n-- Turno {turno} --")
+        for city in (citta1, citta2):
+            city.popolazione += 100
+            city.produzione += 2
+            print(city.stato())
