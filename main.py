@@ -60,7 +60,6 @@ class GameMap:
                     simboli_riga.append(simboli[terreno])
             print(" ".join(simboli_riga))
 
-
 # Bonus di risorse per i vari terreni
 TERRAIN_BONUS = {
     "pianura": {"cibo": 20, "oro": 0, "legno": 5},
@@ -125,8 +124,6 @@ class City:
         while self.risorse["cibo"] >= 1000:
             self.risorse["cibo"] -= 1000
             self.popolazione += 500
-
-
 class Unit:
     """Rappresenta un'unita' militare."""
 
@@ -159,7 +156,6 @@ def muovi_verso(unita: "Unit", dest_x: int, dest_y: int) -> None:
 
     unita.muovi(dx, dy)
     print(f"{unita.nome} si muove a ({unita.x}, {unita.y})")
-
 
 def ia_unita(unita: Unit, propria: City, nemica: City) -> str:
     dist_enemy = abs(unita.x - nemica.x) + abs(unita.y - nemica.y)
@@ -212,7 +208,6 @@ def salva_gioco(filename: str, game_data: dict) -> None:
 def carica_gioco(filename: str) -> dict:
     with open(filename) as f:
         return json.load(f)
-
 
 def mostra_stato(mappa: GameMap, citta: list[City], unita: list[Unit]) -> None:
     """Stampa la mappa insieme allo stato di citta' e unita'."""
@@ -343,7 +338,6 @@ if __name__ == "__main__":
         x2, y2 = random.randint(0, game_map.size - 1), random.randint(0, game_map.size - 1)
         if (x2, y2) != (x1, y1):
             break
-
     terreno1 = game_map.griglia[x1][y1]
     terreno2 = game_map.griglia[x2][y2]
     citta1 = City("Citta 1", x1, y1, 1000, 10, terreno1)
