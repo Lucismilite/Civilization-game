@@ -257,7 +257,7 @@ def ask_chatgpt(state: str) -> str:
 
     if not openai:
         return "{}"
-    openai.api_key = os.getenv("OPENAI_API_KEY", "")
+    openai.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_KEY_V2", "")
     try:
         resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
