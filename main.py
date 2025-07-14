@@ -3,6 +3,17 @@
 
 import random
 import json
+import os
+
+try:
+    import openai
+except Exception:  # pragma: no cover - optional dependency
+    openai = None
+
+try:
+    import google.generativeai as genai
+except Exception:  # pragma: no cover - optional dependency
+    genai = None
 
 
 def benvenuto():
@@ -113,7 +124,6 @@ class City:
         while self.risorse["cibo"] >= 1000:
             self.risorse["cibo"] -= 1000
             self.popolazione += 500
-
 class Unit:
     """Rappresenta un'unita' militare."""
 
@@ -230,6 +240,93 @@ def verifica_scontri(unita: list[Unit]) -> None:
         if u in unita:
             unita.remove(u)
 
+
+def game_state_string(city: City, unit: Unit, enemy: City) -> str:
+    """Crea una descrizione testuale del gioco per le API."""
+
+    return (
+        f"Citta: {city.nome} pos({city.x},{city.y}) pop {city.popolazione} prod {city.produzione} "
+        f"risorse {city.risorse} edifici {city.edifici}. "
+        f"Unita: {unit.nome} pos({unit.x},{unit.y}). "
+        f"Citta nemica a ({enemy.x},{enemy.y})."
+    )
+
+
+def ask_chatgpt(state: str) -> str:
+    """Invia lo stato a ChatGPT e restituisce la risposta."""
+
+    if not openai:
+        return "{}"
+    openai.api_key = os.getenv("OPENAI_API_KEY", "")
+    try:
+        resp = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Rispondi solo con JSON: {\"city\":<azione>, \"unit\":<azione>} "
+                        "dove le azioni di city sono produzione, popolazione, edificio e quelle di unit sono avanza o difendi."
+                    ),
+                },
+                {"role": "user", "content": state},
+            ],
+        )
+        return resp["choices"][0]["message"]["content"].strip()
+    except Exception as exc:  # pragma: no cover - dipende da rete
+        return f"{{\"errore\": \"{exc}\"}}"
+
+
+def ask_gemini(state: str) -> str:
+    """Invia lo stato a Google Gemini e restituisce la risposta."""
+
+    if not genai:
+        return "{}"
+    try:
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY", ""))
+        model = genai.GenerativeModel("gemini-pro")
+        resp = model.generate_content(
+            state
+            + "\nRispondi in JSON {\"city\":<azione>, \"unit\":<azione>} "
+            + "dove city puo' essere produzione, popolazione, edificio e unit avanza o difendi."
+        )
+        return resp.text.strip()
+    except Exception as exc:  # pragma: no cover
+        return f"{{\"errore\": \"{exc}\"}}"
+
+
+def apply_actions(city: City, unit: Unit, enemy: City, action_json: str) -> tuple[str, str]:
+    """Applica le azioni suggerite dal modello."""
+
+    try:
+        data = json.loads(action_json)
+    except json.JSONDecodeError:
+        return "risposta non valida", ""
+
+    az_citta = "nessuna"
+    az_unita = "nessuna"
+
+    match data.get("city"):
+        case "produzione":
+            city.produzione += 1
+            az_citta = "aumenta la produzione"
+        case "popolazione":
+            city.popolazione += 50
+            az_citta = "aumenta la popolazione"
+        case "edificio":
+            costruito = city.costruisci_edificio(EDIFICI_DISPONIBILI)
+            az_citta = f"costruisce {costruito}" if costruito else "nessun edificio"
+
+    match data.get("unit"):
+        case "avanza":
+            muovi_verso(unit, enemy.x, enemy.y)
+            az_unita = "avanza verso il nemico"
+        case "difendi":
+            muovi_verso(unit, city.x, city.y)
+            az_unita = "torna a difendere"
+
+    return az_citta, az_unita
+
 if __name__ == "__main__":
     benvenuto()
     print("Modalita' spettatore IA contro IA")
@@ -262,21 +359,31 @@ if __name__ == "__main__":
 
     # Stato iniziale
     mostra_stato(game_map, [citta1, citta2], unita)
-    # Ciclo di gioco IA vs IA
+
+    # Ciclo di gioco IA vs IA con modelli esterni
     for turno in range(1, 11):
         print(f"\n-- Turno {turno} --")
-        for city in (citta1, citta2):
-            az_citta = azione_citta(city, turno)
-            evento = evento_casuale(city)
-            msg = f"IA {city.nome}: {az_citta}"
-            if evento:
-                msg += f" | Evento: {evento}"
-            print(msg)
 
-        az1 = ia_unita(unita1, citta1, citta2)
-        az2 = ia_unita(unita2, citta2, citta1)
-        print(f"IA {unita1.nome}: {az1}")
-        print(f"IA {unita2.nome}: {az2}")
+        # Giocatore 1 - ChatGPT
+        state1 = game_state_string(citta1, unita1, citta2)
+        resp1 = ask_chatgpt(state1)
+        az_c1, az_u1 = apply_actions(citta1, unita1, citta2, resp1)
+        citta1.produci_risorse(TERRAIN_BONUS, EDIFICI_RISORSE)
+        ev1 = evento_casuale(citta1)
+
+        # Giocatore 2 - Gemini
+        state2 = game_state_string(citta2, unita2, citta1)
+        resp2 = ask_gemini(state2)
+        az_c2, az_u2 = apply_actions(citta2, unita2, citta1, resp2)
+        citta2.produci_risorse(TERRAIN_BONUS, EDIFICI_RISORSE)
+        ev2 = evento_casuale(citta2)
+
+        print(f"ChatGPT: {resp1} -> citta {az_c1}, unita {az_u1}")
+        if ev1:
+            print(f"Evento citta1: {ev1}")
+        print(f"Gemini: {resp2} -> citta {az_c2}, unita {az_u2}")
+        if ev2:
+            print(f"Evento citta2: {ev2}")
 
         verifica_scontri(unita)
         mostra_stato(game_map, [citta1, citta2], unita)
