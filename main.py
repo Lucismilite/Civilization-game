@@ -6,6 +6,19 @@ import json
 import os
 
 try:
+    from api_keys import (
+        OPENAI_API_KEY as CFG_OPENAI_API_KEY,
+        OPENAI_KEY_V2 as CFG_OPENAI_KEY_V2,
+        GOOGLE_API_KEY as CFG_GOOGLE_API_KEY,
+        ANTHROPIC_API_KEY as CFG_ANTHROPIC_API_KEY,
+    )
+except Exception:  # pragma: no cover - file facoltativo
+    CFG_OPENAI_API_KEY = ""
+    CFG_OPENAI_KEY_V2 = ""
+    CFG_GOOGLE_API_KEY = ""
+    CFG_ANTHROPIC_API_KEY = ""
+
+try:
     import openai
 except Exception:  # pragma: no cover - optional dependency
     openai = None
@@ -124,6 +137,7 @@ class City:
         while self.risorse["cibo"] >= 1000:
             self.risorse["cibo"] -= 1000
             self.popolazione += 500
+
 class Unit:
     """Rappresenta un'unita' militare."""
 
@@ -257,7 +271,12 @@ def ask_chatgpt(state: str) -> str:
 
     if not openai:
         return "{}"
-    openai.api_key = os.getenv("OPENAI_API_KEY") or os.getenv("OPENAI_KEY_V2", "")
+    openai.api_key = (
+        os.getenv("OPENAI_API_KEY")
+        or CFG_OPENAI_API_KEY
+        or os.getenv("OPENAI_KEY_V2", "")
+        or CFG_OPENAI_KEY_V2
+    )
     try:
         resp = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
@@ -283,7 +302,7 @@ def ask_gemini(state: str) -> str:
     if not genai:
         return "{}"
     try:
-        genai.configure(api_key=os.getenv("GOOGLE_API_KEY", ""))
+        genai.configure(api_key=os.getenv("GOOGLE_API_KEY") or CFG_GOOGLE_API_KEY)
         model = genai.GenerativeModel("gemini-pro")
         resp = model.generate_content(
             state
