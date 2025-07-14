@@ -2,6 +2,7 @@
 # Entry point del gioco Civilization-like
 
 import random
+import json
 
 
 def benvenuto():
@@ -23,13 +24,12 @@ class GameMap:
         """Aggiunge una citta' alla mappa."""
         self.cities.append(city)
 
-
     def stampa_mappa(self, unita: list["Unit"] | None = None) -> None:
         """Stampa la mappa convertendo i terreni in simboli.
 
         Se presente una unita' nella cella viene mostrata ``U``. Se la cella
         ospita una citta' viene mostrato ``S``.
-
+        """
 
         simboli = {
             "pianura": "P",
@@ -49,22 +49,70 @@ class GameMap:
                     simboli_riga.append(simboli[terreno])
             print(" ".join(simboli_riga))
 
+# Bonus di risorse per i vari terreni
+TERRAIN_BONUS = {
+    "pianura": {"cibo": 20, "oro": 0, "legno": 5},
+    "collina": {"cibo": 10, "oro": 0, "legno": 15},
+    "montagna": {"cibo": 5, "oro": 20, "legno": 5},
+    "foresta": {"cibo": 10, "oro": 0, "legno": 20},
+}
+
+# Definizione edifici e bonus
+EDIFICI_DISPONIBILI = {
+    "Mulino": {"produzione": 3},
+    "Mercato": {"popolazione": 100},
+}
+
+# Bonus di risorse che derivano dagli edifici
+EDIFICI_RISORSE = {
+    "Mulino": {"cibo": 10},
+    "Mercato": {"oro": 10},
+}
+
 
 class City:
     """Rappresenta una citta' del giocatore."""
 
-    def __init__(self, nome: str, x: int, y: int, popolazione: int, produzione: int) -> None:
+    def __init__(self, nome: str, x: int, y: int, popolazione: int, produzione: int, terreno: str) -> None:
         self.nome = nome
         self.x = x
         self.y = y
         self.popolazione = popolazione
         self.produzione = produzione
+        self.terreno = terreno
+        self.edifici: list[str] = []
+        self.risorse = {"cibo": 0, "oro": 0, "legno": 0}
 
     def stato(self) -> str:
+        edifici = ", ".join(self.edifici) if self.edifici else "Nessuno"
+        ris = ", ".join(f"{k}:{v}" for k, v in self.risorse.items())
         return (
             f"{self.nome} - Posizione: ({self.x}, {self.y}), "
-            f"Popolazione: {self.popolazione}, Produzione: {self.produzione}"
+            f"Popolazione: {self.popolazione}, Produzione: {self.produzione}, "
+            f"Edifici: {edifici}, Risorse: {ris}"
         )
+
+    def costruisci_edificio(self, disponibili: dict[str, dict]) -> str | None:
+        restanti = [e for e in disponibili if e not in self.edifici]
+        if not restanti:
+            return None
+        edificio = random.choice(restanti)
+        self.edifici.append(edificio)
+        bonus = disponibili[edificio]
+        self.produzione += bonus.get("produzione", 0)
+        self.popolazione += bonus.get("popolazione", 0)
+        return edificio
+
+    def produci_risorse(self, terreni_bonus: dict[str, dict], edifici_bonus: dict[str, dict]) -> None:
+        bonus = terreni_bonus.get(self.terreno, {})
+        for k, v in bonus.items():
+            self.risorse[k] += v
+        for ed in self.edifici:
+            for k, v in edifici_bonus.get(ed, {}).items():
+                self.risorse[k] += v
+        while self.risorse["cibo"] >= 1000:
+            self.risorse["cibo"] -= 1000
+            self.popolazione += 500
 
 class Unit:
     """Rappresenta un'unita' militare."""
@@ -99,6 +147,57 @@ def muovi_verso(unita: "Unit", dest_x: int, dest_y: int) -> None:
     unita.muovi(dx, dy)
     print(f"{unita.nome} si muove a ({unita.x}, {unita.y})")
 
+def ia_unita(unita: Unit, propria: City, nemica: City) -> str:
+    dist_enemy = abs(unita.x - nemica.x) + abs(unita.y - nemica.y)
+    dist_home = abs(unita.x - propria.x) + abs(unita.y - propria.y)
+    if dist_enemy <= dist_home:
+        muovi_verso(unita, nemica.x, nemica.y)
+        return "avanza verso la citta' nemica"
+    else:
+        muovi_verso(unita, propria.x, propria.y)
+        return "torna a difendere"
+
+
+def azione_citta(citta: City, turno: int) -> str:
+    azione = "nessuna"
+    # produzione risorse
+    citta.produci_risorse(TERRAIN_BONUS, EDIFICI_RISORSE)
+    if turno % 3 == 0:
+        costruito = citta.costruisci_edificio(EDIFICI_DISPONIBILI)
+        if costruito:
+            azione = f"costruisce {costruito}"
+    elif citta.risorse["oro"] > 200:
+        citta.produzione += 1
+        citta.risorse["oro"] -= 200
+        azione = "aumenta la produzione"
+    elif citta.risorse["cibo"] > 500:
+        citta.popolazione += 50
+        citta.risorse["cibo"] -= 500
+        azione = "aumenta la popolazione"
+    return azione
+
+
+def evento_casuale(citta: City) -> str | None:
+    eventi = [
+        ("Carestia", lambda c: c.risorse.update(c.risorse | {"cibo": max(0, c.risorse["cibo"] - 100)})),
+        ("Invasione", lambda c: setattr(c, "popolazione", max(0, c.popolazione - 100))),
+        ("Scoperta", lambda c: c.risorse.update({"oro": c.risorse["oro"] + 50})),
+    ]
+    if random.random() < 0.3:
+        nome, effetto = random.choice(eventi)
+        effetto(citta)
+        return nome
+    return None
+
+
+def salva_gioco(filename: str, game_data: dict) -> None:
+    with open(filename, "w") as f:
+        json.dump(game_data, f, indent=2)
+
+
+def carica_gioco(filename: str) -> dict:
+    with open(filename) as f:
+        return json.load(f)
 
 def mostra_stato(mappa: GameMap, citta: list[City], unita: list[Unit]) -> None:
     """Stampa la mappa insieme allo stato di citta' e unita'."""
@@ -133,6 +232,7 @@ def verifica_scontri(unita: list[Unit]) -> None:
 
 if __name__ == "__main__":
     benvenuto()
+    print("Modalita' spettatore IA contro IA")
     game_map = GameMap()
 
     # Crea due citta' in posizioni casuali distinte
@@ -141,9 +241,10 @@ if __name__ == "__main__":
         x2, y2 = random.randint(0, game_map.size - 1), random.randint(0, game_map.size - 1)
         if (x2, y2) != (x1, y1):
             break
-
-    citta1 = City("Citta 1", x1, y1, 1000, 10)
-    citta2 = City("Citta 2", x2, y2, 1000, 10)
+    terreno1 = game_map.griglia[x1][y1]
+    terreno2 = game_map.griglia[x2][y2]
+    citta1 = City("Citta 1", x1, y1, 1000, 10, terreno1)
+    citta2 = City("Citta 2", x2, y2, 1000, 10, terreno2)
 
     game_map.add_city(citta1)
     game_map.add_city(citta2)
@@ -161,15 +262,26 @@ if __name__ == "__main__":
 
     # Stato iniziale
     mostra_stato(game_map, [citta1, citta2], unita)
-
-    # Ciclo di gioco per 5 turni
-    for turno in range(1, 6):
+    # Ciclo di gioco IA vs IA
+    for turno in range(1, 11):
         print(f"\n-- Turno {turno} --")
         for city in (citta1, citta2):
-            city.popolazione += 100
-            city.produzione += 2
+            az_citta = azione_citta(city, turno)
+            evento = evento_casuale(city)
+            msg = f"IA {city.nome}: {az_citta}"
+            if evento:
+                msg += f" | Evento: {evento}"
+            print(msg)
 
-        muovi_verso(unita1, citta2.x, citta2.y)
-        muovi_verso(unita2, citta1.x, citta1.y)
+        az1 = ia_unita(unita1, citta1, citta2)
+        az2 = ia_unita(unita2, citta2, citta1)
+        print(f"IA {unita1.nome}: {az1}")
+        print(f"IA {unita2.nome}: {az2}")
+
         verifica_scontri(unita)
         mostra_stato(game_map, [citta1, citta2], unita)
+
+    salva_gioco("save.json", {
+        "citta": [city.__dict__ for city in (citta1, citta2)],
+        "unita": [u.__dict__ for u in unita],
+    })
